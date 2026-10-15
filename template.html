@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Icon Gallery</title>
+<style>
+  :root {
+    --bg: #fbf6f4; --panel: #ffffff; --text: #2b2023; --muted: #7d6b70;
+    --line: #ecdcd8; --accent: #c8463a; --accent-text: #ffffff; --chip: #f4e8e5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1719; --panel: #262022; --text: #f2e9e7; --muted: #a8979b;
+      --line: #3a3033; --accent: #ef7a68; --accent-text: #1c1719; --chip: #322a2c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg);
+           border-bottom: 1px solid var(--line); padding: 14px 16px 10px; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .hint { color: var(--muted); margin: 0 0 10px; font-size: 13px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .row .label { color: var(--muted); font-size: 12px; width: 64px; }
+  button.chip { border: 1px solid var(--line); background: var(--chip); color: var(--text);
+                border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  button.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  main { padding: 8px 16px 48px; }
+  section h2 { font-size: 15px; margin: 22px 0 8px; text-transform: capitalize; }
+  section h2 span { color: var(--muted); font-weight: normal; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cell), 1fr)); gap: 8px; }
+  .icon { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px;
+          cursor: pointer; text-align: center; font: inherit; color: var(--muted); font-size: 12px; }
+  .icon:hover, .icon:focus-visible { border-color: var(--accent); outline: none; }
+  .icon img { display: block; width: 100%; height: auto; aspect-ratio: 1; border-radius: 4px; margin-bottom: 4px; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text);
+           color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0;
+           transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Icon Gallery</h1>
+  <p class="hint">Click an icon to copy it. AO3 code is ready to paste into the HTML editor.</p>
+  <div class="row" id="chars"><span class="label">Character</span></div>
+  <div class="row" id="sizes"><span class="label">Size</span></div>
+  <div class="row" id="formats"><span class="label">Copy as</span></div>
+  <div class="row" id="emotions"><span class="label">Emotion</span></div>
+</div></header>
+<main class="wrap" id="gallery"></main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+const DATA = /*DATA*/null;
+const SIZES = /*SIZES*/null;
+const FORMATS = { 'AO3 code': 'html', 'Link only': 'url' };
+const state = { char: Object.keys(DATA)[0], size: SIZES[0], format: 'html', emotion: 'all' };
+try { Object.assign(state, JSON.parse(localStorage.getItem('iconGallery') || '{}')); } catch (e) {}
+if (!DATA[state.char]) state.char = Object.keys(DATA)[0];
+if (!SIZES.includes(state.size)) state.size = SIZES[0];
+
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const px = size => parseInt(size, 10);
+
+function chips(id, items, current, set) {
+  const row = document.getElementById(id);
+  row.querySelectorAll('button').forEach(b => b.remove());
+  for (const [label, value] of items) {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.textContent = label;
+    b.setAttribute('aria-pressed', value === current);
+    b.onclick = () => { set(value); save(); render(); };
+    row.appendChild(b);
+  }
+}
+
+function save() { try { localStorage.setItem('iconGallery', JSON.stringify(state)); } catch (e) {} }
+
+function iconPath(emotion, name) {
+  return [state.char, state.size, emotion, name + '.png'].filter(Boolean).map(encodeURIComponent).join('/');
+}
+
+function copyText(emotion, name) {
+  const url = new URL(iconPath(emotion, name), location.href).href;
+  if (state.format === 'url') return url;
+  const n = px(state.size);
+  const alt = cap(state.char) + (emotion ? ', ' + emotion : '');
+  return `<img src="${url}" width="${n}" height="${n}" alt="${alt}" />`;
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+async function copy(emotion, name) {
+  const text = copyText(emotion, name);
+  try { await navigator.clipboard.writeText(text); toast('Copied ' + name + (emotion ? ' (' + emotion + ')' : '')); }
+  catch (e) { prompt('Copy this:', text); }
+}
+
+function render() {
+  const groups = DATA[state.char];
+  if (state.emotion !== 'all' && !groups.some(g => g[0] === state.emotion)) state.emotion = 'all';
+  chips('chars', Object.keys(DATA).map(c => [cap(c), c]), state.char, v => state.char = v);
+  chips('sizes', SIZES.map(s => [s, s]), state.size, v => state.size = v);
+  chips('formats', Object.entries(FORMATS), state.format, v => state.format = v);
+  chips('emotions', [['All', 'all'], ...groups.map(([e]) => [e ? cap(e) : 'Unsorted', e])], state.emotion,
+        v => state.emotion = v);
+
+  const gallery = document.getElementById('gallery');
+  gallery.style.setProperty('--cell', Math.max(px(state.size) / 1.4, 72) + 'px');
+  gallery.replaceChildren();
+  for (const [emotion, names] of groups) {
+    if (state.emotion !== 'all' && state.emotion !== emotion) continue;
+    const sec = document.createElement('section');
+    const h = document.createElement('h2');
+    h.textContent = emotion || 'Unsorted';
+    const count = document.createElement('span'); count.textContent = ' · ' + names.length;
+    h.appendChild(count);
+    const grid = document.createElement('div'); grid.className = 'grid';
+    for (const name of names) {
+      const b = document.createElement('button'); b.className = 'icon';
+      b.title = 'Copy ' + name;
+      const img = document.createElement('img');
+      img.src = iconPath(emotion, name); img.alt = cap(state.char) + (emotion ? ', ' + emotion : '');
+      img.loading = 'lazy'; img.width = px(state.size); img.height = px(state.size);
+      b.append(img, name);
+      b.onclick = () => copy(emotion, name);
+      grid.appendChild(b);
+    }
+    sec.append(h, grid);
+    gallery.appendChild(sec);
+  }
+}
+render();
+</script>
+</body>
+</html>
