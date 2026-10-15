@@ -114,7 +114,7 @@ function render() {
         v => state.emotion = v);
 
   const gallery = document.getElementById('gallery');
-  gallery.style.setProperty('--cell', Math.max(px(state.size) / 1.4, 72) + 'px');
+  gallery.style.setProperty('--cell', (px(state.size) + 14) + 'px');
   gallery.replaceChildren();
   for (const [emotion, names] of groups) {
     if (state.emotion !== 'all' && state.emotion !== emotion) continue;
